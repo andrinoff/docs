@@ -18,7 +18,7 @@ $ go run main.go <filename>.md
 ```
 This will send automatically exactly what you wrote in Markdown
 
-> [!NOTE]
+
 > You have to use MarkdownV1 syntax <br />
 > ( *"some text"  *  instead of # some text)
 
