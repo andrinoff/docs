@@ -1,0 +1,36 @@
+/* Custom styles */
+body {
+    font-family: 'Inter', sans-serif;
+}
+/* Style for the rendered Markdown content */
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    border-bottom: 1px solid #374151; /* gray-700 */
+    padding-bottom: 0.3em;
+    margin-top: 1.5em;
+    margin-bottom: 1em;
+}
+.markdown-body h1 { font-size: 2em; }
+.markdown-body h2 { font-size: 1.5em; }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body p { margin-bottom: 1em; line-height: 1.6; }
+.markdown-body a { color: #3b82f6; text-decoration: underline; } /* blue-500 */
+.markdown-body code:not(pre code) {
+    background-color: #374151; /* gray-700 */
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    border-radius: 6px;
+}
+.markdown-body ul { list-style-type: disc; margin-left: 2em; margin-bottom: 1em; }
+.markdown-body ol { list-style-type: decimal; margin-left: 2em; margin-bottom: 1em; }
+.markdown-body blockquote {
+    border-left: 4px solid #4b5563; /* gray-600 */
+    padding-left: 1em;
+    color: #d1d5db; /* gray-300 */
+    margin-left: 0;
+    margin-bottom: 1em;
+}
+/* Ensure details marker is visible */
+.markdown-body summary {
+    display: list-item;
+}
