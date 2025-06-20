@@ -1,9 +1,6 @@
 # Bot-UI
 
-> !!!
 > This is no longer maintained. see [bot-api](https://github.com/andrinoff/bot-api)
-
-
 
 This is a console based script for posting in several telegram and discord channels from a MarkDown file and an image.
 
