@@ -6,8 +6,7 @@ To use:
 
 You can use code given here and in [tbilisihc/admin](https://github.com/tbilisihc/admin)
 
-> !!! 
-> You have to set environmental values
+> You have to set environmental values <br/>
 > See someone else's guide on how to do so.
 
 The server supports 2 handlers
