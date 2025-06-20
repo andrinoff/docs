@@ -27,3 +27,5 @@ To use it:
 
 
 There's also a fully built version of a dynamic website using Ruby and Slim [here](https://github.com/andrinoff/github-org-invite)
+
+Last updated: 20.06.25
