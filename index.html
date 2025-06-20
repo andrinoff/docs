@@ -32,9 +32,9 @@
             margin-top: 1.5em;
             margin-bottom: 1em;
         }
-        .markdown-body h1 { font-size: 2.25em; }
-        .markdown-body h2 { font-size: 1.75em; }
-        .markdown-body h3 { font-size: 1.5em; }
+        .markdown-body h1 { font-size: 2em; }
+        .markdown-body h2 { font-size: 1.5em; }
+        .markdown-body h3 { font-size: 1.25em; }
         .markdown-body p { margin-bottom: 1em; line-height: 1.6; }
         .markdown-body a { color: #3b82f6; text-decoration: underline; } /* blue-500 */
         .markdown-body code:not(pre code) {
@@ -53,28 +53,41 @@
             margin-left: 0;
             margin-bottom: 1em;
         }
+        /* Ensure details marker is visible */
+        .markdown-body summary {
+            display: list-item;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200">
 
-    <div class="flex flex-col h-screen">
-        <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-4 shadow-lg z-10">
-            <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="relative flex flex-col h-screen">
+        <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-4 shadow-lg z-20">
+            <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+                <button id="menu-toggle" class="md:hidden p-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500">
+                    <i data-lucide="menu" class="h-6 w-6"></i>
+                    <span class="sr-only">Open menu</span>
+                </button>
+
                 <div class="flex items-center gap-3">
                     <i data-lucide="book-open-check" class="text-blue-400"></i>
-                    <h1 class="text-xl font-bold text-white">GitHub Documentation Viewer</h1>
+                    <h1 class="text-xl font-bold text-white">GitHub Docs</h1>
                 </div>
-                <div id="repo-display" class="text-gray-400 text-sm sm:text-base"></div>
+
+                <div id="repo-display" class="hidden sm:block text-gray-400 text-sm truncate"></div>
             </div>
+             <div id="repo-display-mobile" class="sm:hidden text-gray-400 text-sm truncate mt-3 text-center"></div>
         </header>
 
         <div class="flex-grow flex min-h-0">
-            <aside class="w-1/4 max-w-xs h-full bg-gray-800 border-r border-gray-700 overflow-y-auto p-4">
+            <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto p-4 transform -translate-x-full transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:w-1/4 md:max-w-xs md:flex-shrink-0">
                 <h2 class="text-lg font-semibold mb-3 text-white">Documentation</h2>
                 <div id="file-tree">
                     <p class="text-gray-400 text-sm">Loading documentation...</p>
                 </div>
             </aside>
+
+            <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 z-20 hidden md:hidden"></div>
 
             <main class="flex-1 h-full overflow-y-auto p-6 md:p-8">
                 <div id="loader" class="hidden justify-center items-center h-full">
@@ -104,9 +117,15 @@
             const loader = document.getElementById('loader');
             const errorMessage = document.getElementById('error-message');
             const repoDisplay = document.getElementById('repo-display');
+            const repoDisplayMobile = document.getElementById('repo-display-mobile');
             const initialMessage = document.getElementById('initial-message');
+            // --- Responsive Elements ---
+            const menuToggleBtn = document.getElementById('menu-toggle');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 
             const GITHUB_API_BASE = 'https://api.github.com/repos/';
+            const isMobile = () => window.innerWidth < 768; // md breakpoint
 
             /**
              * Initializes the application by fetching docs from the configured repository.
@@ -114,13 +133,37 @@
             function initialize() {
                 if (!REPO_NAME || !REPO_NAME.includes('/')) {
                      fileTreeContainer.innerHTML = '';
-                     showError('Invalid REPO_NAME configured in the script. Please set it to the format "owner/repo".');
-                     repoDisplay.innerHTML = `<span class="text-red-400 font-semibold">Configuration Error</span>`;
+                     showError('Invalid REPO_NAME configured. Please set it to "owner/repo".');
+                     const errorHtml = `<span class="text-red-400 font-semibold">Configuration Error</span>`;
+                     repoDisplay.innerHTML = errorHtml;
+                     repoDisplayMobile.innerHTML = errorHtml;
                      return;
                 }
 
-                repoDisplay.innerHTML = `Viewing: <a href="https://github.com/${REPO_NAME}" target="_blank" rel="noopener noreferrer" class="font-mono text-blue-400 hover:underline">${REPO_NAME}</a>`;
+                const repoHtml = `Viewing: <a href="https://github.com/${REPO_NAME}" target="_blank" rel="noopener noreferrer" class="font-mono text-blue-400 hover:underline">${REPO_NAME}</a>`;
+                repoDisplay.innerHTML = repoHtml;
+                repoDisplayMobile.innerHTML = repoHtml;
+
+                setupEventListeners();
                 fetchDocumentation(REPO_NAME);
+            }
+
+            /**
+             * Sets up event listeners for UI elements like the mobile menu.
+             */
+            function setupEventListeners() {
+                menuToggleBtn.addEventListener('click', toggleSidebar);
+                sidebarBackdrop.addEventListener('click', closeSidebar);
+            }
+
+            function toggleSidebar() {
+                sidebar.classList.toggle('-translate-x-full');
+                sidebarBackdrop.classList.toggle('hidden');
+            }
+
+            function closeSidebar() {
+                sidebar.classList.add('-translate-x-full');
+                sidebarBackdrop.classList.add('hidden');
             }
 
             /**
@@ -137,7 +180,7 @@
                 try {
                     await fetchAndRenderTree(repoName, 'docs', fileTreeContainer);
                 } catch (error) {
-                    showError(`Could not fetch documentation for "${repoName}". Please check the repository name, ensure the repo is public, and that a '/docs' folder exists. (Error: ${error.message})`);
+                    showError(`Could not fetch docs for "${repoName}". Check if the repo is public and has a '/docs' folder. (Error: ${error.message})`);
                     contentDisplay.innerHTML = '';
                 } finally {
                     hideLoader();
@@ -146,61 +189,56 @@
 
             /**
              * Recursively fetches directory contents and renders the file tree.
-             * If a directory contains a README.md, it's treated as a single clickable file.
              * @param {string} repoName - The owner/repo string.
-             * @param {string} path - The path to fetch (e.g., 'docs' or 'docs/folder').
+             * @param {string} path - The path to fetch.
              * @param {HTMLElement} container - The DOM element to append the tree to.
              */
             async function fetchAndRenderTree(repoName, path, container) {
                 const url = `${GITHUB_API_BASE}${repoName}/contents/${path}`;
                 const response = await fetch(url);
 
-                if (!response.ok) {
-                    throw new Error(`API request failed with status ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`API request failed: ${response.status}`);
 
                 const items = await response.json();
 
+                if (!Array.isArray(items)) {
+                     showError(`The path '${path}' in '${repoName}' is not a directory.`);
+                     return;
+                }
+
                 if (items.length === 0 && path === 'docs') {
-                    showError(`The '/docs' directory in '${repoName}' is empty or does not contain any markdown files or subdirectories.`);
+                    showError(`The '/docs' directory in '${repoName}' is empty.`);
                     return;
                 }
 
                 const folders = items.filter(item => item.type === 'dir').sort((a,b) => a.name.localeCompare(b.name));
                 const files = items.filter(item => item.type === 'file' && item.name.toLowerCase().endsWith('.md')).sort((a,b) => a.name.localeCompare(b.name));
 
-                // --- MODIFIED LOGIC: Process folders first ---
                 for (const folder of folders) {
-                    // Check if the folder contains a README.md file
                     const readmeUrl = `${GITHUB_API_BASE}${repoName}/contents/${folder.path}/README.md`;
                     let readmeFile = null;
                     try {
                         const readmeResponse = await fetch(readmeUrl);
-                        if (readmeResponse.ok) {
-                            readmeFile = await readmeResponse.json();
-                        }
-                    } catch (e) {
-                        // README does not exist or another network error, proceed as normal folder
-                    }
+                        if (readmeResponse.ok) readmeFile = await readmeResponse.json();
+                    } catch (e) { /* README not found, treat as regular folder */ }
 
                     if (readmeFile) {
-                        // RENDER AS A SINGLE CLICKABLE "FOLDER-FILE"
                         const fileElement = document.createElement('div');
-                        fileElement.className = 'text-gray-300 hover:text-white hover:bg-gray-700 rounded-md p-1 cursor-pointer flex items-center gap-2';
-                        // Using a different icon to signify it's a folder's main page
+                        fileElement.className = 'text-gray-300 hover:text-white hover:bg-gray-700 rounded-md p-2 cursor-pointer flex items-center gap-2';
                         fileElement.innerHTML = `<i data-lucide="book-marked" class="w-4 h-4 text-blue-400 flex-shrink-0"></i><span class="truncate">${folder.name}</span>`;
-                        fileElement.addEventListener('click', () => {
+                        fileElement.addEventListener('click', (e) => {
+                            e.stopPropagation();
                             document.querySelectorAll('#file-tree .bg-blue-900\\/50').forEach(el => el.classList.remove('bg-blue-900/50', 'text-white'));
                             fileElement.classList.add('bg-blue-900/50', 'text-white');
                             fetchAndDisplayFile(readmeFile);
+                            if (isMobile()) closeSidebar();
                         });
                         container.appendChild(fileElement);
                     } else {
-                        // RENDER AS A COLLAPSIBLE FOLDER (Original Behavior)
                         const details = document.createElement('details');
                         details.className = 'my-1';
                         const summary = document.createElement('summary');
-                        summary.className = 'cursor-pointer text-white hover:bg-gray-700 rounded-md p-1 flex items-center gap-2';
+                        summary.className = 'cursor-pointer text-white hover:bg-gray-700 rounded-md p-2 flex items-center gap-2 list-none';
                         summary.innerHTML = `<i data-lucide="folder" class="w-4 h-4 text-blue-400 flex-shrink-0"></i><span class="truncate">${folder.name}</span>`;
 
                         const subContainer = document.createElement('div');
@@ -218,22 +256,21 @@
                     }
                 }
 
-                // --- Process markdown files as before ---
                 for (const file of files) {
-                    // Avoid rendering the README.md again if its parent folder was already rendered as a "folder-file"
-                     if (file.name.toLowerCase() === 'readme.md') continue;
+                    if (file.name.toLowerCase() === 'readme.md') continue;
 
                     const fileElement = document.createElement('div');
-                    fileElement.className = 'text-gray-300 hover:text-white hover:bg-gray-700 rounded-md p-1 cursor-pointer flex items-center gap-2';
+                    fileElement.className = 'text-gray-300 hover:text-white hover:bg-gray-700 rounded-md p-2 cursor-pointer flex items-center gap-2';
                     fileElement.innerHTML = `<i data-lucide="file-text" class="w-4 h-4 text-gray-400 flex-shrink-0"></i><span class="truncate">${file.name}</span>`;
-                    fileElement.addEventListener('click', () => {
+                    fileElement.addEventListener('click', (e) => {
+                        e.stopPropagation();
                         document.querySelectorAll('#file-tree .bg-blue-900\\/50').forEach(el => el.classList.remove('bg-blue-900/50', 'text-white'));
                         fileElement.classList.add('bg-blue-900/50', 'text-white');
                         fetchAndDisplayFile(file);
+                        if (isMobile()) closeSidebar();
                     });
                     container.appendChild(fileElement);
                 }
-
                 lucide.createIcons();
             }
 
@@ -243,19 +280,18 @@
              */
             async function fetchAndDisplayFile(file) {
                 showLoader();
-                contentDisplay.innerHTML = '';
                 hideError();
                 if(initialMessage) initialMessage.classList.add('hidden');
 
                 try {
                     const response = await fetch(file.download_url);
-                    if (!response.ok) {
-                        throw new Error(`Failed to download file content (status ${response.status})`);
-                    }
+                    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
                     const markdownContent = await response.text();
 
+                    // Sanitize and parse markdown
                     contentDisplay.innerHTML = marked.parse(markdownContent);
 
+                    // Apply syntax highlighting
                     contentDisplay.querySelectorAll('pre code').forEach((block) => {
                         hljs.highlightElement(block);
                     });
