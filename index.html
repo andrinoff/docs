@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Docs Viewer</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Marked.js for Markdown to HTML conversion -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- highlight.js for syntax highlighting in code blocks -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom styles */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Style for the rendered Markdown content */
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+            border-bottom: 1px solid #374151; /* gray-700 */
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+            margin-bottom: 1em;
+        }
+        .markdown-body h1 { font-size: 2.25em; }
+        .markdown-body h2 { font-size: 1.75em; }
+        .markdown-body h3 { font-size: 1.5em; }
+        .markdown-body p { margin-bottom: 1em; line-height: 1.6; }
+        .markdown-body a { color: #3b82f6; text-decoration: underline; } /* blue-500 */
+        .markdown-body code:not(pre code) {
+            background-color: #374151; /* gray-700 */
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            border-radius: 6px;
+        }
+        .markdown-body ul { list-style-type: disc; margin-left: 2em; margin-bottom: 1em; }
+        .markdown-body ol { list-style-type: decimal; margin-left: 2em; margin-bottom: 1em; }
+        .markdown-body blockquote {
+            border-left: 4px solid #4b5563; /* gray-600 */
+            padding-left: 1em;
+            color: #d1d5db; /* gray-300 */
+            margin-left: 0;
+            margin-bottom: 1em;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <div class="flex flex-col h-screen">
+        <!-- Header Section -->
+        <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-4 shadow-lg z-10">
+            <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="book-open-check" class="text-blue-400"></i>
+                    <h1 class="text-xl font-bold text-white">GitHub Documentation Viewer</h1>
+                </div>
+                <div id="repo-display" class="text-gray-400 text-sm sm:text-base"></div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-grow flex min-h-0">
+            <!-- Sidebar for File Tree -->
+            <aside class="w-1/4 max-w-xs h-full bg-gray-800 border-r border-gray-700 overflow-y-auto p-4">
+                <h2 class="text-lg font-semibold mb-3 text-white">File Explorer</h2>
+                <div id="file-tree">
+                    <p class="text-gray-400 text-sm">Loading documentation...</p>
+                </div>
+            </aside>
+
+            <!-- Content Display -->
+            <main class="flex-1 h-full overflow-y-auto p-6 md:p-8">
+                <div id="loader" class="hidden justify-center items-center h-full">
+                    <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+                <div id="error-message" class="hidden p-4 bg-red-900/50 border border-red-700 text-red-300 rounded-md"></div>
+                <div id="content-display" class="prose prose-invert max-w-none markdown-body">
+                    <div id="initial-message" class="text-center py-20">
+                         <i data-lucide="file-text" class="mx-auto h-24 w-24 text-gray-600"></i>
+                        <h2 class="mt-2 text-2xl font-semibold text-gray-400">Welcome</h2>
+                        <p class="mt-1 text-gray-500">Select a file from the explorer to view its content.</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- CONFIGURATION ---
+            // Set the GitHub repository you want to display the 'docs' folder for.
+            // This is necessary for custom domains on GitHub Pages.
+            // For example: 'your-username/your-repo-name'
+            const REPO_NAME = 'andrinoff/docs'; // <--- CHANGE THIS!
+
+            // --- DOM Element References ---
+            const fileTreeContainer = document.getElementById('file-tree');
+            const contentDisplay = document.getElementById('content-display');
+            const loader = document.getElementById('loader');
+            const errorMessage = document.getElementById('error-message');
+            const repoDisplay = document.getElementById('repo-display');
+            const initialMessage = document.getElementById('initial-message');
+
+            const GITHUB_API_BASE = 'https://api.github.com/repos/';
+            
+            /**
+             * Initializes the application by fetching docs from the configured repository.
+             */
+            function initialize() {
+                if (!REPO_NAME || !REPO_NAME.includes('/')) {
+                     fileTreeContainer.innerHTML = '';
+                     showError('Invalid REPO_NAME configured in the script. Please set it to the format "owner/repo".');
+                     repoDisplay.innerHTML = `<span class="text-red-400 font-semibold">Configuration Error</span>`;
+                     return;
+                }
+                
+                repoDisplay.innerHTML = `Viewing: <a href="https://github.com/${REPO_NAME}" target="_blank" rel="noopener noreferrer" class="font-mono text-blue-400 hover:underline">${REPO_NAME}</a>`;
+                fetchDocumentation(REPO_NAME);
+            }
+
+            /**
+             * Main function to initiate the documentation fetching process.
+             * @param {string} repoName - The owner/repo string.
+             */
+            async function fetchDocumentation(repoName) {
+                hideError();
+                fileTreeContainer.innerHTML = ''; 
+                if(initialMessage) initialMessage.classList.add('hidden');
+                contentDisplay.innerHTML = ''; 
+                showLoader();
+
+                try {
+                    await fetchAndRenderTree(repoName, 'docs', fileTreeContainer);
+                } catch (error) {
+                    showError(`Could not fetch documentation for "${repoName}". Please check the repository name, ensure the repo is public, and that a '/docs' folder exists. (Error: ${error.message})`);
+                    contentDisplay.innerHTML = ''; 
+                } finally {
+                    hideLoader();
+                }
+            }
+            
+            /**
+             * Recursively fetches directory contents and renders the file tree.
+             * @param {string} repoName - The owner/repo string.
+             * @param {string} path - The path to fetch (e.g., 'docs' or 'docs/folder').
+             * @param {HTMLElement} container - The DOM element to append the tree to.
+             */
+            async function fetchAndRenderTree(repoName, path, container) {
+                const url = `${GITHUB_API_BASE}${repoName}/contents/${path}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+                
+                const items = await response.json();
+                
+                if (items.length === 0 && path === 'docs') {
+                    showError(`The '/docs' directory in '${repoName}' is empty or does not contain any markdown files or subdirectories.`);
+                    return;
+                }
+                
+                const folders = items.filter(item => item.type === 'dir').sort((a,b) => a.name.localeCompare(b.name));
+                const files = items.filter(item => item.type === 'file' && item.name.toLowerCase().endsWith('.md')).sort((a,b) => a.name.localeCompare(b.name));
+                
+                for (const folder of folders) {
+                    const details = document.createElement('details');
+                    details.className = 'my-1';
+                    const summary = document.createElement('summary');
+                    summary.className = 'cursor-pointer text-white hover:bg-gray-700 rounded-md p-1 flex items-center gap-2';
+                    summary.innerHTML = `<i data-lucide="folder" class="w-4 h-4 text-blue-400 flex-shrink-0"></i><span class="truncate">${folder.name}</span>`;
+                    
+                    const subContainer = document.createElement('div');
+                    subContainer.className = 'ml-4 border-l border-gray-600 pl-4';
+                    
+                    details.appendChild(summary);
+                    details.appendChild(subContainer);
+                    container.appendChild(details);
+
+                    details.addEventListener('toggle', async (event) => {
+                        if (event.target.open && subContainer.innerHTML === '') {
+                             await fetchAndRenderTree(repoName, folder.path, subContainer);
+                        }
+                    }, { once: true });
+                }
+
+                for (const file of files) {
+                    const fileElement = document.createElement('div');
+                    fileElement.className = 'text-gray-300 hover:text-white hover:bg-gray-700 rounded-md p-1 cursor-pointer flex items-center gap-2';
+                    fileElement.innerHTML = `<i data-lucide="file-text" class="w-4 h-4 text-gray-400 flex-shrink-0"></i><span class="truncate">${file.name}</span>`;
+                    fileElement.addEventListener('click', () => {
+                        document.querySelectorAll('#file-tree .bg-blue-900\\/50').forEach(el => el.classList.remove('bg-blue-900/50', 'text-white'));
+                        fileElement.classList.add('bg-blue-900/50', 'text-white');
+                        fetchAndDisplayFile(file);
+                    });
+                    container.appendChild(fileElement);
+                }
+                
+                lucide.createIcons();
+            }
+
+            /**
+             * Fetches the content of a single file and displays it.
+             * @param {object} file - The file object from the GitHub API.
+             */
+            async function fetchAndDisplayFile(file) {
+                showLoader();
+                contentDisplay.innerHTML = ''; 
+                hideError();
+
+                try {
+                    const response = await fetch(file.download_url);
+                    if (!response.ok) {
+                        throw new Error(`Failed to download file content (status ${response.status})`);
+                    }
+                    const markdownContent = await response.text();
+                    
+                    contentDisplay.innerHTML = marked.parse(markdownContent);
+                    
+                    contentDisplay.querySelectorAll('pre code').forEach((block) => {
+                        hljs.highlightElement(block);
+                    });
+
+                } catch (error) {
+                    showError(`Error displaying file "${file.name}": ${error.message}`);
+                } finally {
+                    hideLoader();
+                }
+            }
+
+            // --- UI Helper Functions ---
+            function showLoader() {
+                loader.classList.remove('hidden');
+                loader.classList.add('flex');
+                contentDisplay.classList.add('hidden');
+                if(initialMessage) initialMessage.classList.add('hidden');
+            }
+
+            function hideLoader() {
+                loader.classList.add('hidden');
+                loader.classList.remove('flex');
+                contentDisplay.classList.remove('hidden');
+            }
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
+            }
+
+            function hideError() {
+                errorMessage.classList.add('hidden');
+            }
+
+            // --- Initialize the app ---
+            initialize();
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
