@@ -24,3 +24,6 @@ To use it:
 
 - [Octocat](https://github.com/octocat)
 - [Vercel](https://vercel.com)
+
+
+There's also a fully built version of a dynamic website using Ruby and Slim [here](https://github.com/andrinoff/github-org-invite)
