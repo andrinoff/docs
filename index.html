@@ -5,22 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GitHub Docs Viewer</title>
     
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Marked.js for Markdown to HTML conversion -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
-    <!-- highlight.js for syntax highlighting in code blocks -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
@@ -61,7 +56,6 @@
 <body class="bg-gray-900 text-gray-200">
 
     <div class="flex flex-col h-screen">
-        <!-- Header Section -->
         <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-4 shadow-lg z-10">
             <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
@@ -72,9 +66,7 @@
             </div>
         </header>
 
-        <!-- Main Content -->
         <div class="flex-grow flex min-h-0">
-            <!-- Sidebar for File Tree -->
             <aside class="w-1/4 max-w-xs h-full bg-gray-800 border-r border-gray-700 overflow-y-auto p-4">
                 <h2 class="text-lg font-semibold mb-3 text-white">File Explorer</h2>
                 <div id="file-tree">
@@ -82,7 +74,6 @@
                 </div>
             </aside>
 
-            <!-- Content Display -->
             <main class="flex-1 h-full overflow-y-auto p-6 md:p-8">
                 <div id="loader" class="hidden justify-center items-center h-full">
                     <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
@@ -103,9 +94,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             
             // --- CONFIGURATION ---
-            // Set the GitHub repository you want to display the 'docs' folder for.
-            // This is necessary for custom domains on GitHub Pages.
-            // For example: 'your-username/your-repo-name'
             const REPO_NAME = 'andrinoff/docs'; // <--- CHANGE THIS!
 
             // --- DOM Element References ---
@@ -156,6 +144,7 @@
             
             /**
              * Recursively fetches directory contents and renders the file tree.
+             * If a directory contains a README.md, it's treated as a single clickable file.
              * @param {string} repoName - The owner/repo string.
              * @param {string} path - The path to fetch (e.g., 'docs' or 'docs/folder').
              * @param {HTMLElement} container - The DOM element to append the tree to.
@@ -177,29 +166,61 @@
                 
                 const folders = items.filter(item => item.type === 'dir').sort((a,b) => a.name.localeCompare(b.name));
                 const files = items.filter(item => item.type === 'file' && item.name.toLowerCase().endsWith('.md')).sort((a,b) => a.name.localeCompare(b.name));
-                
-                for (const folder of folders) {
-                    const details = document.createElement('details');
-                    details.className = 'my-1';
-                    const summary = document.createElement('summary');
-                    summary.className = 'cursor-pointer text-white hover:bg-gray-700 rounded-md p-1 flex items-center gap-2';
-                    summary.innerHTML = `<i data-lucide="folder" class="w-4 h-4 text-blue-400 flex-shrink-0"></i><span class="truncate">${folder.name}</span>`;
-                    
-                    const subContainer = document.createElement('div');
-                    subContainer.className = 'ml-4 border-l border-gray-600 pl-4';
-                    
-                    details.appendChild(summary);
-                    details.appendChild(subContainer);
-                    container.appendChild(details);
 
-                    details.addEventListener('toggle', async (event) => {
-                        if (event.target.open && subContainer.innerHTML === '') {
-                             await fetchAndRenderTree(repoName, folder.path, subContainer);
+                // --- MODIFIED LOGIC: Process folders first ---
+                for (const folder of folders) {
+                    // Check if the folder contains a README.md file
+                    const readmeUrl = `${GITHUB_API_BASE}${repoName}/contents/${folder.path}/README.md`;
+                    let readmeFile = null;
+                    try {
+                        const readmeResponse = await fetch(readmeUrl);
+                        if (readmeResponse.ok) {
+                            readmeFile = await readmeResponse.json();
                         }
-                    }, { once: true });
+                    } catch (e) {
+                        // README does not exist or another network error, proceed as normal folder
+                    }
+
+                    if (readmeFile) {
+                        // RENDER AS A SINGLE CLICKABLE "FOLDER-FILE"
+                        const fileElement = document.createElement('div');
+                        fileElement.className = 'text-gray-300 hover:text-white hover:bg-gray-700 rounded-md p-1 cursor-pointer flex items-center gap-2';
+                        // Using a different icon to signify it's a folder's main page
+                        fileElement.innerHTML = `<i data-lucide="book-marked" class="w-4 h-4 text-blue-400 flex-shrink-0"></i><span class="truncate">${folder.name}</span>`;
+                        fileElement.addEventListener('click', () => {
+                            document.querySelectorAll('#file-tree .bg-blue-900\\/50').forEach(el => el.classList.remove('bg-blue-900/50', 'text-white'));
+                            fileElement.classList.add('bg-blue-900/50', 'text-white');
+                            fetchAndDisplayFile(readmeFile);
+                        });
+                        container.appendChild(fileElement);
+                    } else {
+                        // RENDER AS A COLLAPSIBLE FOLDER (Original Behavior)
+                        const details = document.createElement('details');
+                        details.className = 'my-1';
+                        const summary = document.createElement('summary');
+                        summary.className = 'cursor-pointer text-white hover:bg-gray-700 rounded-md p-1 flex items-center gap-2';
+                        summary.innerHTML = `<i data-lucide="folder" class="w-4 h-4 text-blue-400 flex-shrink-0"></i><span class="truncate">${folder.name}</span>`;
+                        
+                        const subContainer = document.createElement('div');
+                        subContainer.className = 'ml-4 border-l border-gray-600 pl-4';
+                        
+                        details.appendChild(summary);
+                        details.appendChild(subContainer);
+                        container.appendChild(details);
+
+                        details.addEventListener('toggle', async (event) => {
+                            if (event.target.open && subContainer.innerHTML === '') {
+                                 await fetchAndRenderTree(repoName, folder.path, subContainer);
+                            }
+                        }, { once: true });
+                    }
                 }
 
+                // --- Process markdown files as before ---
                 for (const file of files) {
+                    // Avoid rendering the README.md again if its parent folder was already rendered as a "folder-file"
+                     if (file.name.toLowerCase() === 'readme.md') continue;
+                    
                     const fileElement = document.createElement('div');
                     fileElement.className = 'text-gray-300 hover:text-white hover:bg-gray-700 rounded-md p-1 cursor-pointer flex items-center gap-2';
                     fileElement.innerHTML = `<i data-lucide="file-text" class="w-4 h-4 text-gray-400 flex-shrink-0"></i><span class="truncate">${file.name}</span>`;
@@ -222,6 +243,7 @@
                 showLoader();
                 contentDisplay.innerHTML = ''; 
                 hideError();
+                if(initialMessage) initialMessage.classList.add('hidden');
 
                 try {
                     const response = await fetch(file.download_url);
